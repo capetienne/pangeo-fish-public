@@ -466,11 +466,16 @@ def compute_solar_likelihood(
     lat_flat = lat_flat.ravel()
     n_pix = len(lon_flat)
 
+    try:
+        from tqdm.notebook import tqdm
+    except ImportError:
+        from tqdm import tqdm
+
     n_nights = len(pairs)
     lh_smooth = np.zeros((n_nights, len(lats), len(lons)))
     night_times = []
 
-    for i, (t_rise, t_set) in enumerate(pairs):
+    for i, (t_rise, t_set) in enumerate(tqdm(pairs, desc="Solar likelihood", unit="night")):
         night_times.append(pd.Timestamp(t_rise.date()))
         flag = qdf.iloc[i]["flag"]
         v_r = qdf.iloc[i]["valid_rise"]
