@@ -122,7 +122,14 @@ def _get_crossing_fast(t_approx, lon, lat, horizon_deg, direction="up", window_h
 # ---------------------------------------------------------------------------
 
 
-def detect_twilight_events(df, release_lon, release_lat, thresh_light=60, window_h=2.5):
+def detect_twilight_events(
+    df,
+    release_lon,
+    release_lat,
+    thresh_light=60,
+    window_h=2.5,
+    use_fixed_threshold=False,
+):
     """Detect and pair RISE / SET twilight events in the tag light record.
 
     Parameters
@@ -148,6 +155,12 @@ def detect_twilight_events(df, release_lon, release_lat, thresh_light=60, window
     window_h : float, default 2.5
         Maximum allowed offset (hours) between a raw crossing and the
         astronomical prediction at the release position.
+    use_fixed_threshold : bool, default False
+        If ``True``, replace the per-row dynamic threshold with a single
+        constant equal to its maximum observed value (i.e. the threshold
+        value at full moon).  This is more conservative — it avoids
+        misclassifying moonlit nights as daytime — at the cost of slightly
+        fewer detections on faint-moon nights.
 
     Returns
     -------
@@ -167,6 +180,12 @@ def detect_twilight_events(df, release_lon, release_lat, thresh_light=60, window
         thresh_arr = dynamic_threshold(df["moon_phase"].values)
     else:
         thresh_arr = np.full(len(df), thresh_light, dtype=float)
+
+    # Option: collapse to the maximum value (full-moon level) for all rows.
+    # More conservative — prevents misclassifying moonlit nights as day —
+    # at the cost of slightly fewer detections on new-moon nights.
+    if use_fixed_threshold:
+        thresh_arr = np.full(len(thresh_arr), float(np.max(thresh_arr)))
 
     # Raw threshold crossings
     rise_raw, set_raw = [], []
@@ -238,16 +257,36 @@ class CalibResult(NamedTuple):
         Self-calibrated longitude (degrees East) derived from noon UTC.
     elevations : np.ndarray
         Per-event solar elevation at each RISE and SET used for
-        calibration.
+        calibration (start period).
+    thresh_deg_end : float or None
+        Median solar elevation at the recapture location over the last
+        ``n_nights_end`` pairs.  ``None`` if no recapture position was
+        provided.
+    elevations_end : np.ndarray or None
+        Per-event elevations at recapture location (end period).
+    delta_deg : float or None
+        ``thresh_deg_end − thresh_deg``.  Small |delta| (< 1–2°)
+        validates the calibration; large delta may indicate tag drift
+        or strong spatial variability.
     """
 
     thresh_deg: float
     lon_self: float
     elevations: np.ndarray
+    thresh_deg_end: float | None = None
+    elevations_end: np.ndarray | None = None
+    delta_deg: float | None = None
 
 
 def self_calibrate_solar_threshold(
-    pairs, df, n_nights=20, release_lon=None, release_lat=None
+    pairs,
+    df,
+    n_nights=20,
+    release_lon=None,
+    release_lat=None,
+    recapture_lon=None,
+    recapture_lat=None,
+    n_nights_end=None,
 ):
     """Self-calibrate the solar elevation threshold from the first nights.
 
@@ -256,28 +295,40 @@ def self_calibrate_solar_threshold(
     elevation at each RISE and SET event at that longitude.  The median
     elevation is the calibrated threshold.
 
+    Optionally verifies the calibration against the last ``n_nights_end``
+    events evaluated at the known recapture position.  A small
+    ``|delta_deg|`` (< 1–2°) confirms that the calibration is consistent
+    across the deployment.
+
     Parameters
     ----------
     pairs : list of (pd.Timestamp, pd.Timestamp)
         Paired (t_rise, t_set) events, as returned by
         :func:`detect_twilight_events`.
     df : pd.DataFrame
-        Tag data (not used directly; kept for API symmetry and possible
-        future extensions).
+        Tag data (not used directly; kept for API symmetry).
     n_nights : int, default 20
-        Number of nights to use for calibration.
+        Number of nights to use for calibration (from the start).
     release_lon : float or None
         Release-site longitude (degrees East).  If ``None``, the
-        self-calibrated longitude is used in its place for computing
-        elevations.
+        self-calibrated longitude is used for computing elevations.
     release_lat : float
-        Release-site latitude (degrees North).  Required — must be
-        provided.
+        Release-site latitude (degrees North).  Required.
+    recapture_lon : float or None, default None
+        Recapture longitude (degrees East).  If provided together with
+        ``recapture_lat``, enables end-period verification.
+    recapture_lat : float or None, default None
+        Recapture latitude (degrees North).
+    n_nights_end : int or None, default None
+        Number of nights before recapture to use for verification.
+        Defaults to ``n_nights`` if not provided.
 
     Returns
     -------
     CalibResult
-        Named tuple with ``thresh_deg``, ``lon_self``, ``elevations``.
+        Named tuple with ``thresh_deg``, ``lon_self``, ``elevations``,
+        and (if recapture provided) ``thresh_deg_end``,
+        ``elevations_end``, ``delta_deg``.
 
     Notes
     -----
@@ -297,28 +348,49 @@ def self_calibrate_solar_threshold(
         noon_lons.append((12 - noon_utc) * 15)
 
     lon_self = float(np.median(noon_lons))
-    lat_eval = release_lat  # use release latitude for elevation computation
+    lat_eval = release_lat
 
-    # Step 2: compute actual solar elevation at each crossing
-    elevs_rise, elevs_set = [], []
-    for t_rise, t_set in calib_pairs:
-        obs = ephem.Observer()
-        obs.lon = str(lon_self)
-        obs.lat = str(lat_eval)
-        obs.pressure = 0
-        sun = ephem.Sun()
+    # Step 2: solar elevation at each crossing (start period)
+    def _elevations_at(event_pairs, lon, lat):
+        elevs_r, elevs_s = [], []
+        for t_rise, t_set in event_pairs:
+            obs = ephem.Observer()
+            obs.lon = str(lon)
+            obs.lat = str(lat)
+            obs.pressure = 0
+            sun = ephem.Sun()
+            obs.date = _tz(t_rise).strftime("%Y/%m/%d %H:%M:%S")
+            sun.compute(obs)
+            elevs_r.append(np.degrees(float(sun.alt)))
+            obs.date = _tz(t_set).strftime("%Y/%m/%d %H:%M:%S")
+            sun.compute(obs)
+            elevs_s.append(np.degrees(float(sun.alt)))
+        return np.array(elevs_r + elevs_s)
 
-        obs.date = _tz(t_rise).strftime("%Y/%m/%d %H:%M:%S")
-        sun.compute(obs)
-        elevs_rise.append(np.degrees(float(sun.alt)))
-
-        obs.date = _tz(t_set).strftime("%Y/%m/%d %H:%M:%S")
-        sun.compute(obs)
-        elevs_set.append(np.degrees(float(sun.alt)))
-
-    elevations = np.array(elevs_rise + elevs_set)
+    elevations = _elevations_at(calib_pairs, lon_self, lat_eval)
     thresh_deg = float(np.median(elevations))
-    return CalibResult(thresh_deg=thresh_deg, lon_self=lon_self, elevations=elevations)
+
+    # Step 3 (optional): end-period verification at recapture position
+    thresh_deg_end = None
+    elevations_end = None
+    delta_deg = None
+
+    if recapture_lon is not None and recapture_lat is not None:
+        n_end = n_nights_end if n_nights_end is not None else n_nights
+        if len(pairs) > n_end:
+            end_pairs = pairs[-n_end:]
+            elevations_end = _elevations_at(end_pairs, recapture_lon, recapture_lat)
+            thresh_deg_end = float(np.median(elevations_end))
+            delta_deg = thresh_deg_end - thresh_deg
+
+    return CalibResult(
+        thresh_deg=thresh_deg,
+        lon_self=lon_self,
+        elevations=elevations,
+        thresh_deg_end=thresh_deg_end,
+        elevations_end=elevations_end,
+        delta_deg=delta_deg,
+    )
 
 
 def compute_solar_likelihood(
