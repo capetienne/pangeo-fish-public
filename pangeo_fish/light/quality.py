@@ -105,8 +105,10 @@ def twilight_quality(
         Maximum pressure inside the window (dbar).
     """
     t = _tz(t_event)
-    mask = (df["time"] >= t - pd.Timedelta(hours=window_h)) & (
-        df["time"] <= t + pd.Timedelta(hours=window_h)
+    # Normalise to tz-naive for comparison (df["time"] may be tz-naive)
+    t_cmp = t.tz_convert(None) if t.tzinfo is not None else t
+    mask = (df["time"] >= t_cmp - pd.Timedelta(hours=window_h)) & (
+        df["time"] <= t_cmp + pd.Timedelta(hours=window_h)
     )
     sub = df[mask]
 

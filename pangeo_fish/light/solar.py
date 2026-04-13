@@ -351,6 +351,13 @@ def self_calibrate_solar_threshold(
     lat_eval = release_lat
 
     # Step 2: solar elevation at each crossing (start period)
+    # Use release_lon if provided — it is more reliable than lon_self for
+    # the first N nights when the fish is still near the release site.
+    # lon_self is derived from noon-UTC timing which is noisy; using it to
+    # compute elevations creates a circular dependency that can bias
+    # thresh_deg by several degrees relative to the true sensor threshold.
+    lon_eval = release_lon if release_lon is not None else lon_self
+
     def _elevations_at(event_pairs, lon, lat):
         elevs_r, elevs_s = [], []
         for t_rise, t_set in event_pairs:
@@ -367,7 +374,7 @@ def self_calibrate_solar_threshold(
             elevs_s.append(np.degrees(float(sun.alt)))
         return np.array(elevs_r + elevs_s)
 
-    elevations = _elevations_at(calib_pairs, lon_self, lat_eval)
+    elevations = _elevations_at(calib_pairs, lon_eval, lat_eval)
     thresh_deg = float(np.median(elevations))
 
     # Step 3 (optional): end-period verification at recapture position
