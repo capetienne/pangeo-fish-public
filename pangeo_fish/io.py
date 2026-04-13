@@ -22,9 +22,12 @@ def tz_convert(df, timezones):
     timezones : mapping of str to str
         The time zones to convert to per column.
     """
-    new_columns = {
-        column: pd.Index(df[column]).tz_convert(tz) for column, tz in timezones.items()
-    }
+    new_columns = {}
+    for column, tz in timezones.items():
+        idx = pd.Index(df[column])
+        if hasattr(idx, "tzinfo") and idx.tzinfo is None:
+            idx = idx.tz_localize("UTC")
+        new_columns[column] = idx.tz_convert(tz)
 
     return df.assign(**new_columns)
 
