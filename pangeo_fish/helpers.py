@@ -185,16 +185,7 @@ def reshape_to_2d(ds: xr.Dataset):
     return grid.to_2d(ds)
 
 
-def load_tag(
-    *,
-    tag_root: str,
-    tag_name: str,
-    storage_options: dict = None,
-    raw_csv_path: str = None,
-    tag_type: str = None,
-    tagging_events_path: str = None,
-    **kwargs,
-):
+def load_tag(*, tag_root: str, tag_name: str, storage_options: dict = None, **kwargs):
     """Load a tag.
 
     Parameters
@@ -203,18 +194,10 @@ def load_tag(
         Path to the folder that contains the tag data under a folder ``tag_name``.
     tag_name : str
         Name of the tagged fish (e.g. ``"281B-4949"``). Used to locate
-        ``{tag_root}/{tag_name}/``.
+        ``{tag_root}/{tag_name}/`` which must contain ``dst.csv``,
+        ``tagging_event.csv`` and ``metadata.json``.
     storage_options : dict, optional
         Storage options for S3 access.
-    raw_csv_path : str, optional
-        Path to a raw manufacturer CSV file (Lotek or WC PSAT Series).
-        When provided together with *tag_type* and *tagging_events_path*,
-        the standard tag folder is created automatically before opening.
-        If the folder already exists (``dst.csv`` present), this step is skipped.
-    tag_type : {"lotek", "wc_psat"}, optional
-        Manufacturer format — required when *raw_csv_path* is given.
-    tagging_events_path : str, optional
-        Path to the ``tagging_event.csv`` — required when *raw_csv_path* is given.
 
     Returns
     -------
@@ -225,28 +208,6 @@ def load_tag(
     time_slice : slice
         Time interval described by the release and recapture dates.
     """
-    import os
-
-    # ── Optional: prepare folder from raw manufacturer CSV ────────────────────
-    if raw_csv_path is not None:
-        if tag_type is None or tagging_events_path is None:
-            raise ValueError(
-                "tag_type and tagging_events_path are required when raw_csv_path is provided."
-            )
-        dst_path = os.path.join(tag_root, tag_name, "dst.csv")
-        if not os.path.exists(dst_path):
-            from pangeo_fish.light.ingest import prepare_tag_folder
-            prepare_tag_folder(
-                raw_csv_path,
-                tag_type,
-                tagging_events_path=tagging_events_path,
-                output_dir=tag_root,
-                tag_name=tag_name,
-            )
-        else:
-            print(f"Folder already exists, skipping preparation: {os.path.dirname(dst_path)}")
-
-    # ── Open tag (existing behaviour) ─────────────────────────────────────────
     if not tag_root.startswith("s3://"):
         storage_options = {}
     tag = open_tag(tag_root, tag_name, storage_options)
@@ -254,8 +215,6 @@ def load_tag(
     time_slice = to_time_slice(tag["tagging_events/time"])
     tag_log = tag["dst"].ds.sel(time=time_slice).assign_attrs(tag.attrs)
     return tag, tag_log, time_slice
-
-
 def update_stations(
     *,
     tag: xr.DataTree,
