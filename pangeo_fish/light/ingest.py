@@ -1,8 +1,14 @@
 """Tag CSV ingestion helpers.
 
-Converts raw manufacturer files into the standard
-``(time, temperature, pressure, light)`` DataFrame and builds an
-``xr.DataTree`` compatible with the rest of the pangeo-fish pipeline.
+Converts raw manufacturer files into the standard folder structure expected
+by :func:`pangeo_fish.io.open_tag`:
+
+.. code-block:: text
+
+    {output_dir}/{tag_name}/
+        dst.csv              ← time, temperature, pressure, light
+        tagging_events.csv   ← copied from the source file
+        metadata.json        ← tag_name, tag_type
 
 Supported tag types
 -------------------
@@ -17,9 +23,12 @@ Supported tag types
     is set to NaN and ``HAS_LIGHT`` must be ``False``.
 """
 
+import json
+import os
+import shutil
+
 import numpy as np
 import pandas as pd
-import xarray as xr
 
 
 def load_tag_csv(path, tag_type):
@@ -70,7 +79,11 @@ def load_tag_csv(path, tag_type):
         df_raw["time"] = pd.to_datetime(
             df_raw["Day"] + " " + df_raw["Time"], format="%d-%b-%Y %H:%M:%S"
         )
-        df_raw = df_raw.dropna(subset=["Depth", "Temperature"]).sort_values("time").set_index("time")
+        df_raw = (
+            df_raw.dropna(subset=["Depth", "Temperature"])
+            .sort_values("time")
+            .set_index("time")
+        )
         dst = pd.DataFrame({
             "temperature": df_raw["Temperature"],
             "pressure":    df_raw["Depth"],
@@ -86,51 +99,57 @@ def load_tag_csv(path, tag_type):
     return dst
 
 
-def build_tag_datatree(dst, tag_name, tag_type, tagging_events_path):
-    """Build an ``xr.DataTree`` from a standardised DST DataFrame.
+def prepare_tag_folder(
+    raw_csv_path,
+    tag_type,
+    tagging_events_path,
+    output_dir,
+    tag_name,
+):
+    """Parse a raw manufacturer CSV and write the standard tag folder.
 
-    The returned tree mirrors the structure produced by
-    ``pangeo_fish.io.open_tag``, so all downstream pipeline cells work
-    unchanged.
+    Creates ``{output_dir}/{tag_name}/`` containing:
+
+    * ``dst.csv`` — standardised time-series (time, temperature, pressure, light)
+    * ``tagging_events.csv`` — copied from *tagging_events_path*
+    * ``metadata.json`` — ``{"tag_name": ..., "tag_type": ...}``
+
+    The resulting folder can be opened with :func:`pangeo_fish.io.open_tag`.
 
     Parameters
     ----------
-    dst : pd.DataFrame
-        Output of :func:`load_tag_csv`.
-    tag_name : str
-        Human-readable tag identifier (e.g. ``"281B-4949"``).
-    tag_type : str
-        Manufacturer string stored as a tree attribute.
+    raw_csv_path : str or path-like
+        Path to the raw manufacturer CSV file.
+    tag_type : {"lotek", "wc_psat"}
+        Manufacturer / format identifier passed to :func:`load_tag_csv`.
     tagging_events_path : str or path-like
-        Path to a ``tagging_events.csv`` with columns
+        Path to the ``tagging_events.csv`` file with columns
         ``event_name``, ``time``, ``longitude``, ``latitude``.
-        Must contain at least ``release`` and ``fish_death`` rows.
+    output_dir : str or path-like
+        Root directory where the tag folder will be created.
+    tag_name : str
+        Tag identifier — used as the subfolder name and stored in metadata.
 
     Returns
     -------
-    tag : xr.DataTree
-        Full tree with ``/dst`` and ``/tagging_events`` sub-trees.
-    tag_log : xr.Dataset
-        Slice of ``/dst`` between release and recapture dates.
-    time_slice : slice
-        ``slice(release_time, recapture_time)`` as ``pd.Timestamp``.
+    folder : str
+        Absolute path to the created ``{output_dir}/{tag_name}/`` folder.
     """
-    events = pd.read_csv(
-        tagging_events_path, parse_dates=["time"], index_col="event_name"
-    )
-    events["time"] = pd.to_datetime(events["time"]).dt.tz_localize(None)
+    dst = load_tag_csv(raw_csv_path, tag_type)
 
-    tag = xr.DataTree.from_dict({
-        "/": xr.Dataset(attrs={"tag_name": tag_name, "tag_type": tag_type}),
-        "dst": dst.rename_axis("time").to_xarray(),
-        "tagging_events": events.to_xarray(),
-    })
-    tag.attrs["tag_name"] = tag_name
+    folder = os.path.join(output_dir, tag_name)
+    os.makedirs(folder, exist_ok=True)
 
-    t_release   = events.loc["release",    "time"]
-    t_recapture = events.loc["fish_death", "time"]
-    time_slice = slice(pd.Timestamp(t_release), pd.Timestamp(t_recapture))
-    tag_log = tag["dst"].ds.sel(time=time_slice).assign_attrs(tag.attrs)
+    # dst.csv
+    dst.to_csv(os.path.join(folder, "dst.csv"), date_format="%Y-%m-%dT%H:%M:%S")
 
-    print(f"tag_log: {len(tag_log.time):,} timesteps")
-    return tag, tag_log, time_slice
+    # tagging_events.csv
+    shutil.copy(tagging_events_path, os.path.join(folder, "tagging_events.csv"))
+
+    # metadata.json
+    metadata = {"tag_name": tag_name, "tag_type": tag_type}
+    with open(os.path.join(folder, "metadata.json"), "w") as f:
+        json.dump(metadata, f, indent=2)
+
+    print(f"Tag folder ready: {folder}")
+    return folder
