@@ -12,6 +12,10 @@ by :func:`pangeo_fish.io.open_tag`:
 
 Supported tag types
 -------------------
+``"dst"``
+    Standard pangeo-fish format — already-processed ``dst.csv`` with
+    columns ``time``, ``temperature``, ``pressure``, ``light``.
+
 ``"lotek"``
     Lotek LAT2810 — semicolon-separated, comma decimal,
     timestamp format ``%H:%M:%S %d/%m/%y``.
@@ -90,9 +94,16 @@ def load_tag_csv(path, tag_type):
             "light":       np.nan,
         })
 
+    elif tag_type == "dst":
+        # Standard pangeo-fish dst.csv format — already processed
+        dst = pd.read_csv(
+            path, parse_dates=["time"], index_col="time"
+        ).sort_index()
+        dst = dst[["temperature", "pressure", "light"]]
+
     else:
         raise ValueError(
-            f"Unknown tag_type {tag_type!r}. Supported: 'lotek', 'wc_psat'."
+            f"Unknown tag_type {tag_type!r}. Supported: 'lotek', 'wc_psat', 'dst'."
         )
 
     print(f"  {len(dst):,} rows | {dst.index.min()} → {dst.index.max()}")
