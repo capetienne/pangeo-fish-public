@@ -7,7 +7,7 @@ by :func:`pangeo_fish.io.open_tag`:
 
     {output_dir}/{tag_name}/
         dst.csv              ← time, temperature, pressure, light
-        tagging_events.csv   ← copied from the source file
+        tagging_event.csv   ← copied from the source file
         metadata.json        ← tag_name, tag_type
 
 Supported tag types
@@ -122,7 +122,7 @@ def prepare_tag_folder(
     Creates ``{output_dir}/{tag_name}/`` containing:
 
     * ``dst.csv`` — standardised time-series (time, temperature, pressure, light)
-    * ``tagging_events.csv`` — copied from *tagging_events_path*
+    * ``tagging_event.csv`` — copied from *tagging_events_path*
     * ``metadata.json`` — ``{"tag_name": ..., "tag_type": ...}``
 
     The resulting folder can be opened with :func:`pangeo_fish.io.open_tag`.
@@ -134,7 +134,7 @@ def prepare_tag_folder(
     tag_type : {"lotek", "wc_psat"}
         Manufacturer / format identifier passed to :func:`load_tag_csv`.
     tagging_events_path : str or path-like
-        Path to the ``tagging_events.csv`` file with columns
+        Path to the ``tagging_event.csv`` file with columns
         ``event_name``, ``time``, ``longitude``, ``latitude``.
     output_dir : str or path-like
         Root directory where the tag folder will be created.
@@ -154,8 +154,8 @@ def prepare_tag_folder(
     # dst.csv
     dst.to_csv(os.path.join(folder, "dst.csv"), date_format="%Y-%m-%dT%H:%M:%S")
 
-    # tagging_events.csv
-    shutil.copy(tagging_events_path, os.path.join(folder, "tagging_events.csv"))
+    # tagging_event.csv
+    shutil.copy(tagging_events_path, os.path.join(folder, "tagging_event.csv"))
 
     # metadata.json
     metadata = {"tag_name": tag_name, "tag_type": tag_type}

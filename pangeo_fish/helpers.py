@@ -214,7 +214,7 @@ def load_tag(
     tag_type : {"lotek", "wc_psat"}, optional
         Manufacturer format — required when *raw_csv_path* is given.
     tagging_events_path : str, optional
-        Path to the ``tagging_events.csv`` — required when *raw_csv_path* is given.
+        Path to the ``tagging_event.csv`` — required when *raw_csv_path* is given.
 
     Returns
     -------

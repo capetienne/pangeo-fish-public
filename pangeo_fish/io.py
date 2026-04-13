@@ -67,7 +67,7 @@ def open_tag(root, name, storage_options=None):
     ).tz_convert(None)
 
     tagging_events = pd.read_csv(
-        mapper.dirfs.open(f"{name}/tagging_events.csv"),
+        mapper.dirfs.open(f"{name}/tagging_event.csv"),
         parse_dates=["time"],
         index_col="event_name",
     ).pipe(tz_convert, {"time": None})
