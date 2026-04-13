@@ -10,10 +10,11 @@ Supported tag types
     Lotek LAT2810 — semicolon-separated, comma decimal,
     timestamp format ``%H:%M:%S %d/%m/%y``.
 
-``"wc_psat_daily"``
-    Wildlife Computers MiniPAT PSAT — daily *DailyData.csv* with an
-    optional 10-minute *Series* CSV that is spliced in for the last
-    days before pop-up.
+``"wc_psat"``
+    Wildlife Computers MiniPAT PSAT — 10-minute Series CSV
+    (``*-Series.csv``) with columns ``Day``, ``Time``, ``Depth``,
+    ``Temperature``.  No raw light counts are available, so ``light``
+    is set to NaN and ``HAS_LIGHT`` must be ``False``.
 """
 
 import numpy as np
@@ -21,23 +22,15 @@ import pandas as pd
 import xarray as xr
 
 
-def load_tag_csv(
-    path,
-    tag_type,
-    series_path=None,
-):
+def load_tag_csv(path, tag_type):
     """Load a raw manufacturer CSV and return a standardised DataFrame.
 
     Parameters
     ----------
     path : str or path-like
-        Path to the main CSV file.
-    tag_type : {"lotek", "wc_psat_daily"}
+        Path to the CSV file.
+    tag_type : {"lotek", "wc_psat"}
         Manufacturer / format identifier.
-    series_path : str or path-like or None
-        Path to the optional 10-minute Series CSV (WC PSAT only).
-        When provided, Series rows replace daily rows from their start
-        time onward.
 
     Returns
     -------
@@ -72,33 +65,21 @@ def load_tag_csv(
             "LightIntensity": "light",
         })[["temperature", "pressure", "light"]]
 
-    elif tag_type == "wc_psat_daily":
-        dd = pd.read_csv(path)
-        dd["time"] = pd.to_datetime(dd["Date"], format="%m/%d/%Y") + pd.Timedelta("12h")
-        dd = dd.dropna(subset=["MinTemp", "MaxTemp"]).sort_values("time").set_index("time")
+    elif tag_type == "wc_psat":
+        df_raw = pd.read_csv(path)
+        df_raw["time"] = pd.to_datetime(
+            df_raw["Day"] + " " + df_raw["Time"], format="%d-%b-%Y %H:%M:%S"
+        )
+        df_raw = df_raw.dropna(subset=["Depth", "Temperature"]).sort_values("time").set_index("time")
         dst = pd.DataFrame({
-            "temperature": (dd["MinTemp"] + dd["MaxTemp"]) / 2.0,
-            "pressure":    (dd["MinDepth"].clip(lower=0) + dd["MaxDepth"]) / 2.0,
-            "light":       dd["DeltaLight"],   # proxy only — HAS_LIGHT should be False
+            "temperature": df_raw["Temperature"],
+            "pressure":    df_raw["Depth"],
+            "light":       np.nan,
         })
-        if series_path is not None:
-            ser = pd.read_csv(series_path).dropna(subset=["Depth", "Temperature"])
-            ser["time"] = pd.to_datetime(
-                ser["Day"] + " " + ser["Time"], format="%d-%b-%Y %H:%M:%S"
-            )
-            ser = ser.sort_values("time").set_index("time")
-            ser = ser.rename(columns={"Depth": "pressure", "Temperature": "temperature"})
-            ser["light"] = np.nan
-            t_start = ser.index.min()
-            dst = pd.concat([
-                dst[dst.index < t_start],
-                ser[["temperature", "pressure", "light"]],
-            ])
-            print(f"  Spliced 10-min Series from {t_start} ({len(ser):,} rows)")
 
     else:
         raise ValueError(
-            f"Unknown tag_type {tag_type!r}. Supported: 'lotek', 'wc_psat_daily'."
+            f"Unknown tag_type {tag_type!r}. Supported: 'lotek', 'wc_psat'."
         )
 
     print(f"  {len(dst):,} rows | {dst.index.min()} → {dst.index.max()}")
