@@ -86,17 +86,7 @@ def load_tag_csv(path, tag_type):
     return dst
 
 
-def build_tag_datatree(
-    dst,
-    tag_name,
-    tag_type,
-    release_date,
-    release_lon,
-    release_lat,
-    recapture_date,
-    recapture_lon,
-    recapture_lat,
-):
+def build_tag_datatree(dst, tag_name, tag_type, tagging_events_path):
     """Build an ``xr.DataTree`` from a standardised DST DataFrame.
 
     The returned tree mirrors the structure produced by
@@ -111,14 +101,10 @@ def build_tag_datatree(
         Human-readable tag identifier (e.g. ``"281B-4949"``).
     tag_type : str
         Manufacturer string stored as a tree attribute.
-    release_date : str or datetime-like
-        Release timestamp (UTC).
-    release_lon, release_lat : float
-        Release position (decimal degrees).
-    recapture_date : str or datetime-like
-        Recapture / pop-up timestamp (UTC).
-    recapture_lon, recapture_lat : float
-        Recapture position (decimal degrees).
+    tagging_events_path : str or path-like
+        Path to a ``tagging_events.csv`` with columns
+        ``event_name``, ``time``, ``longitude``, ``latitude``.
+        Must contain at least ``release`` and ``fish_death`` rows.
 
     Returns
     -------
@@ -127,22 +113,12 @@ def build_tag_datatree(
     tag_log : xr.Dataset
         Slice of ``/dst`` between release and recapture dates.
     time_slice : slice
-        ``slice(release_date, recapture_date)`` as ``pd.Timestamp``.
+        ``slice(release_time, recapture_time)`` as ``pd.Timestamp``.
     """
-    events = pd.DataFrame([
-        {
-            "event_name": "release",
-            "time":       pd.Timestamp(release_date),
-            "latitude":   release_lat,
-            "longitude":  release_lon,
-        },
-        {
-            "event_name": "fish_death",
-            "time":       pd.Timestamp(recapture_date),
-            "latitude":   recapture_lat,
-            "longitude":  recapture_lon,
-        },
-    ]).set_index("event_name")
+    events = pd.read_csv(
+        tagging_events_path, parse_dates=["time"], index_col="event_name"
+    )
+    events["time"] = pd.to_datetime(events["time"]).dt.tz_localize(None)
 
     tag = xr.DataTree.from_dict({
         "/": xr.Dataset(attrs={"tag_name": tag_name, "tag_type": tag_type}),
@@ -151,7 +127,9 @@ def build_tag_datatree(
     })
     tag.attrs["tag_name"] = tag_name
 
-    time_slice = slice(pd.Timestamp(release_date), pd.Timestamp(recapture_date))
+    t_release   = events.loc["release",    "time"]
+    t_recapture = events.loc["fish_death", "time"]
+    time_slice = slice(pd.Timestamp(t_release), pd.Timestamp(t_recapture))
     tag_log = tag["dst"].ds.sel(time=time_slice).assign_attrs(tag.attrs)
 
     print(f"tag_log: {len(tag_log.time):,} timesteps")
