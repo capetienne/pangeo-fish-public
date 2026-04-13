@@ -146,6 +146,10 @@ def prepare_tag_folder(
     folder : str
         Absolute path to the created ``{output_dir}/{tag_name}/`` folder.
     """
+    raw_csv_path      = os.path.expanduser(str(raw_csv_path))
+    tagging_events_path = os.path.expanduser(str(tagging_events_path))
+    output_dir        = os.path.expanduser(str(output_dir))
+
     dst = load_tag_csv(raw_csv_path, tag_type)
 
     folder = os.path.join(output_dir, tag_name)
