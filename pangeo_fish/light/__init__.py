@@ -44,6 +44,7 @@ Poon, J., et al. (2024). Lunar illuminance as a driver of marine animal
     *Journal of Experimental Marine Biology and Ecology*, 560, 151858.
 """
 
+from pangeo_fish.light.ingest import build_tag_datatree, load_tag_csv
 from pangeo_fish.light.lunar import (
     apply_cloud_weighting,
     compute_lunar_correlation_maps,
@@ -65,6 +66,9 @@ from pangeo_fish.light.solar import (
 )
 
 __all__ = [
+    # ingest
+    "load_tag_csv",
+    "build_tag_datatree",
     # quality
     "dynamic_threshold",
     "twilight_quality",
