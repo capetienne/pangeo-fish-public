@@ -24,8 +24,6 @@ import xarray as xr
 def load_tag_csv(
     path,
     tag_type,
-    time_correction=None,
-    resample_freq=None,
     series_path=None,
 ):
     """Load a raw manufacturer CSV and return a standardised DataFrame.
@@ -36,11 +34,6 @@ def load_tag_csv(
         Path to the main CSV file.
     tag_type : {"lotek", "wc_psat_daily"}
         Manufacturer / format identifier.
-    time_correction : pd.Timedelta or None
-        Clock-drift correction added to every timestamp (Lotek only).
-    resample_freq : str or None
-        Pandas offset alias for resampling, e.g. ``"1min"`` (Lotek only).
-        ``None`` keeps the original recording interval.
     series_path : str or path-like or None
         Path to the optional 10-minute Series CSV (WC PSAT only).
         When provided, Series rows replace daily rows from their start
@@ -69,20 +62,15 @@ def load_tag_csv(
             usecols=[0, 1, 2, 3],
         )
         df_raw = df_raw.dropna(subset=["TimeS"])
-        timestamps = pd.to_datetime(
+        df_raw["time"] = pd.to_datetime(
             df_raw["TimeS"].str.strip(), format="%H:%M:%S %d/%m/%y", errors="coerce"
         )
-        if time_correction is not None:
-            timestamps = timestamps + pd.Timedelta(time_correction)
-        df_raw["time"] = timestamps
         df_raw = df_raw.dropna(subset=["time"]).set_index("time").sort_index()
         dst = df_raw.rename(columns={
             "ExtTemp":        "temperature",
             "Pressure":       "pressure",
             "LightIntensity": "light",
         })[["temperature", "pressure", "light"]]
-        if resample_freq:
-            dst = dst.resample(resample_freq).mean()
 
     elif tag_type == "wc_psat_daily":
         dd = pd.read_csv(path)
