@@ -166,6 +166,25 @@ def _update_params_dict(factory, params: dict):
     return params | {"predictor_factory": {"class": str(factory), "kwargs": kwargs}}
 
 
+def decode_healpix(ds, grid_info):
+    """Decode HEALPix grid info on a Dataset or DataArray.
+
+    Wraps ``dggs.decode()`` with a fallback to the xarray factory-method pattern,
+    which is required when newer xarray versions reject the extra coordinate
+    variables created by some xdggs releases.
+    """
+    try:
+        return ds.dggs.decode(grid_info)
+    except ValueError:
+        from xdggs import DGGSIndex
+
+        name = "cell_ids" if "cell_ids" in ds.coords else "cells"
+        var = ds[name].assign_attrs(grid_info)
+        index = DGGSIndex.from_variables({name: var}, options={})
+        coords = xr.Coordinates.from_xindex(index)
+        return ds.assign_coords(coords)
+
+
 def to_healpix(ds: xr.Dataset) -> xr.Dataset:
     """Helper that loads a Dataset as a HEALPix grid (indexed by ``"cell_ids"``)."""
 
@@ -177,7 +196,7 @@ def to_healpix(ds: xr.Dataset) -> xr.Dataset:
     if "indexing_scheme" not in attrs.keys():
         attrs["indexing_scheme"] = "nested"
 
-    return ds.dggs.decode({"grid_name": "healpix"} | attrs)
+    return decode_healpix(ds, {"grid_name": "healpix"} | attrs)
 
 
 def reshape_to_2d(ds: xr.Dataset):
