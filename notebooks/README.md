@@ -34,7 +34,7 @@ Run the notebooks **in order** for each new tag.
 
 ## Step 2 — Compute the temperature variance profile
 
-**Notebook:** [`../diff_variance/variance_fast.ipynb`](../../diff_variance/variance_fast.ipynb)  
+**Notebook:** `variance_fast.ipynb`  
 **Run:** once per tag  
 **Requires:** `model.zarr` from Step 1, Argo data fetched from ERDDAP (cached locally after first run)  
 **Output:** `{target_root}/temperature_variance.zarr` saved to S3
