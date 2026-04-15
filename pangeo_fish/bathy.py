@@ -245,6 +245,7 @@ def batch_compute_pdf_bathy(
     reshaped_tag,
     target_root: str,
     batch_size=50000,
+    storage_options=None,
 ):
     """
     Dividing calculation into batches using the Numba-accelerated per-batch function.
@@ -258,7 +259,7 @@ def batch_compute_pdf_bathy(
         engine="zarr",
         chunks={},
         inline_array=True,
-        storage_options=None,
+        storage_options=storage_options,
     )
 
     # Get common cell IDs
