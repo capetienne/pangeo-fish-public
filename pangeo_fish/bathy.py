@@ -220,6 +220,9 @@ def compute_pdf_bathy_batch_numba(ds_chunk, reshaped_tag, copernicus_chunk):
     hist = np.asarray(ds_chunk["bathy_pixel_hist"].values)  # (C,B)
     pressure = np.asarray(reshaped_tag["pressure"].values)  # (T,n_obs) or (T,C,n_obs)
     XE = np.asarray(copernicus_chunk["XE"].values)  # (T,C)
+    # Hourly Copernicus zos may carry a singleton depth dim → squeeze to (T,C)
+    if XE.ndim == 3:
+        XE = XE.squeeze(axis=tuple(i for i in range(1, XE.ndim - 1)))
     depth_bins = np.asarray(ds_chunk.depth_bins.values)
 
     if pressure.ndim == 2:
