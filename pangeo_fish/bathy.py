@@ -224,7 +224,9 @@ def compute_pdf_bathy_batch_numba(ds_chunk, reshaped_tag, copernicus_chunk):
     if XE.ndim > 2:
         XE = XE.squeeze()
     if XE.ndim != 2:
-        raise ValueError(f"XE should be 2D (T, C) after squeezing, got shape {XE.shape}")
+        raise ValueError(
+            f"XE should be 2D (T, C) after squeezing, got shape {XE.shape}"
+        )
     depth_bins = np.asarray(ds_chunk.depth_bins.values)
 
     if pressure.ndim == 2:
