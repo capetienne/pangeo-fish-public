@@ -63,7 +63,14 @@ def load_tag_csv(path, tag_type):
             path,
             sep=";",
             decimal=",",
-            names=["TimeS", "LightIntensity", "ExtTemp", "Pressure", "C_TooDimFlag", "_"],
+            names=[
+                "TimeS",
+                "LightIntensity",
+                "ExtTemp",
+                "Pressure",
+                "C_TooDimFlag",
+                "_",
+            ],
             skiprows=1,
             usecols=[0, 1, 2, 3],
         )
@@ -72,11 +79,13 @@ def load_tag_csv(path, tag_type):
             df_raw["TimeS"].str.strip(), format="%H:%M:%S %d/%m/%y", errors="coerce"
         )
         df_raw = df_raw.dropna(subset=["time"]).set_index("time").sort_index()
-        dst = df_raw.rename(columns={
-            "ExtTemp":        "temperature",
-            "Pressure":       "pressure",
-            "LightIntensity": "light",
-        })[["temperature", "pressure", "light"]]
+        dst = df_raw.rename(
+            columns={
+                "ExtTemp": "temperature",
+                "Pressure": "pressure",
+                "LightIntensity": "light",
+            }
+        )[["temperature", "pressure", "light"]]
 
     elif tag_type == "wc_psat":
         df_raw = pd.read_csv(path)
@@ -88,17 +97,17 @@ def load_tag_csv(path, tag_type):
             .sort_values("time")
             .set_index("time")
         )
-        dst = pd.DataFrame({
-            "temperature": df_raw["Temperature"],
-            "pressure":    df_raw["Depth"],
-            "light":       np.nan,
-        })
+        dst = pd.DataFrame(
+            {
+                "temperature": df_raw["Temperature"],
+                "pressure": df_raw["Depth"],
+                "light": np.nan,
+            }
+        )
 
     elif tag_type == "dst":
         # Standard pangeo-fish dst.csv format — already processed
-        dst = pd.read_csv(
-            path, parse_dates=["time"], index_col="time"
-        ).sort_index()
+        dst = pd.read_csv(path, parse_dates=["time"], index_col="time").sort_index()
         dst = dst[["temperature", "pressure", "light"]]
 
     else:
@@ -146,9 +155,9 @@ def prepare_tag_folder(
     folder : str
         Absolute path to the created ``{output_dir}/{tag_name}/`` folder.
     """
-    raw_csv_path      = os.path.expanduser(str(raw_csv_path))
+    raw_csv_path = os.path.expanduser(str(raw_csv_path))
     tagging_events_path = os.path.expanduser(str(tagging_events_path))
-    output_dir        = os.path.expanduser(str(output_dir))
+    output_dir = os.path.expanduser(str(output_dir))
 
     dst = load_tag_csv(raw_csv_path, tag_type)
 

@@ -80,9 +80,7 @@ def find_usable_moon_nights(
         t0 = d + pd.Timedelta(hours=19)
         t1 = d + pd.Timedelta(hours=32)
 
-        mask = (
-            (df["time"] >= t0) & (df["time"] <= t1) & (df["pressure"] < max_depth_m)
-        )
+        mask = (df["time"] >= t0) & (df["time"] <= t1) & (df["pressure"] < max_depth_m)
         sub = df[mask].copy()
         if len(sub) < 30:
             continue

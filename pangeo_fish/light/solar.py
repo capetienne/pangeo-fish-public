@@ -16,7 +16,6 @@ from scipy.ndimage import gaussian_filter
 
 from pangeo_fish.light.quality import _tz
 
-
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
@@ -482,7 +481,9 @@ def compute_solar_likelihood(
     lh_smooth = np.zeros((n_nights, len(lats), len(lons)))
     night_times = []
 
-    for i, (t_rise, t_set) in enumerate(tqdm(pairs, desc="Solar likelihood", unit="night")):
+    for i, (t_rise, t_set) in enumerate(
+        tqdm(pairs, desc="Solar likelihood", unit="night")
+    ):
         night_times.append(pd.Timestamp(t_rise.date()))
         flag = qdf.iloc[i]["flag"]
         v_r = qdf.iloc[i]["valid_rise"]

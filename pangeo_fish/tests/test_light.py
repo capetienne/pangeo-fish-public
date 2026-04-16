@@ -5,11 +5,10 @@ import pandas as pd
 import pytest
 import xarray as xr
 
+from pangeo_fish.light.lunar import correlation_to_likelihood
 from pangeo_fish.light.physics import moon_ground_illuminance
 from pangeo_fish.light.quality import dynamic_threshold
-from pangeo_fish.light.lunar import correlation_to_likelihood
 from pangeo_fish.light.solar import compute_solar_likelihood
-
 
 # ---------------------------------------------------------------------------
 # quality.dynamic_threshold
@@ -98,13 +97,11 @@ def _make_minimal_pairs_and_qdf(n_nights):
 def test_solar_likelihood_dims():
     """compute_solar_likelihood returns DataArray with correct dims and shape."""
     n_nights = 5
-    lons = np.arange(-10, 11, 5.0)   # 5 values
-    lats = np.arange(30, 51, 5.0)    # 5 values
+    lons = np.arange(-10, 11, 5.0)  # 5 values
+    lats = np.arange(30, 51, 5.0)  # 5 values
 
     pairs, qdf = _make_minimal_pairs_and_qdf(n_nights)
-    da = compute_solar_likelihood(
-        pairs, qdf, lons=lons, lats=lats, thresh_deg=-11.0
-    )
+    da = compute_solar_likelihood(pairs, qdf, lons=lons, lats=lats, thresh_deg=-11.0)
 
     assert isinstance(da, xr.DataArray)
     assert set(da.dims) == {"time", "latitude", "longitude"}

@@ -215,6 +215,8 @@ def load_tag(*, tag_root: str, tag_name: str, storage_options: dict = None, **kw
     time_slice = to_time_slice(tag["tagging_events/time"])
     tag_log = tag["dst"].ds.sel(time=time_slice).assign_attrs(tag.attrs)
     return tag, tag_log, time_slice
+
+
 def update_stations(
     *,
     tag: xr.DataTree,
