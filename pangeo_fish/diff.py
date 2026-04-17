@@ -6,6 +6,72 @@ import xarray as xr
 from numba import njit
 from scipy.interpolate import interp1d
 
+# ---------------------------------------------------------------------------
+# Numba guvectorize version of likelihood_fast — no Python loop, no scipy
+# ---------------------------------------------------------------------------
+
+@njit(inline="always")
+def _interp1d_sorted(x_query, x_arr, y_arr):
+    """Linear interpolation at x_query from sorted x_arr/y_arr, edge extrapolation."""
+    n = len(x_arr)
+    if x_query <= x_arr[0]:
+        return y_arr[0]
+    if x_query >= x_arr[n - 1]:
+        return y_arr[n - 1]
+    for i in range(n - 1):
+        if x_arr[i] <= x_query <= x_arr[i + 1]:
+            t = (x_query - x_arr[i]) / (x_arr[i + 1] - x_arr[i])
+            return y_arr[i] + t * (y_arr[i + 1] - y_arr[i])
+    return y_arr[n - 1]
+
+
+_likelihood_gu_signatures = [
+    "void(float32[:], float32[:], float32[:], float32[:], float32[:], float32[:])",
+    "void(float64[:], float64[:], float64[:], float64[:], float64[:], float64[:])",
+]
+
+
+@numba.guvectorize(
+    _likelihood_gu_signatures,
+    "(z),(z),(o),(o),(o)->()",
+    nopython=True,
+)
+def likelihood_fast_gu(model_temp, model_depth, tag_temp, tag_depth, var_at_depth, result):
+    """Guvectorized temperature likelihood — replaces likelihood_fast + vectorize=True.
+
+    Same computation as likelihood_fast but runs entirely in compiled numba code:
+    no Python loop, no scipy object creation per cell.
+
+    Layout: model arrays have (z) depth levels, tag arrays have (o) observations.
+    """
+    # Check that model profile has at least one finite value
+    has_model = False
+    for i in range(len(model_temp)):
+        if np.isfinite(model_temp[i]) and np.isfinite(model_depth[i]):
+            has_model = True
+            break
+    if not has_model:
+        result[0] = np.nan
+        return
+
+    log_sum = 0.0
+    count = 0
+    two_pi_log = 1.8378770664093453  # log(2*pi)
+
+    for o in range(len(tag_depth)):
+        if np.isnan(tag_depth[o]) or np.isnan(tag_temp[o]):
+            continue
+        mt = _interp1d_sorted(tag_depth[o], model_depth, model_temp)
+        var = var_at_depth[o] + 0.01
+        diff2 = (tag_temp[o] - mt) ** 2 / var
+        log_sum += -0.5 * (two_pi_log + np.log(var) + diff2)
+        count += 1
+
+    if count == 0:
+        result[0] = np.nan
+    else:
+        result[0] = np.exp(log_sum / count)
+
 _diff_z_signatures = [
     "void(float32[:], float32[:], float32[:], float32[:], float32[:])",
     "void(float64[:], float64[:], float64[:], float64[:], float64[:])",
