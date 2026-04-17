@@ -7,10 +7,10 @@ from numba import njit
 from scipy.interpolate import interp1d
 
 _diff_z_signatures = [
-    "void(float32[:], float32[:], float32[:], float32[:])",
-    "void(float64[:], float64[:], float64[:], float64[:])",
-    "void(float32[:], float32[:], float64[:], float64[:])",
-    "void(float64[:], float64[:], float32[:], float64[:])",
+    "void(float32[:], float32[:], float32[:], float32[:], float32[:])",
+    "void(float64[:], float64[:], float64[:], float64[:], float64[:])",
+    "void(float32[:], float32[:], float64[:], float64[:], float64[:])",
+    "void(float64[:], float64[:], float32[:], float32[:], float64[:])",
 ]
 
 
