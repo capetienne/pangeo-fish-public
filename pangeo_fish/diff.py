@@ -10,6 +10,7 @@ from scipy.interpolate import interp1d
 # Numba guvectorize version of likelihood_fast — no Python loop, no scipy
 # ---------------------------------------------------------------------------
 
+
 @njit(inline="always")
 def _interp1d_sorted(x_query, x_arr, y_arr):
     """Linear interpolation at x_query from sorted x_arr/y_arr, edge extrapolation."""
@@ -36,7 +37,9 @@ _likelihood_gu_signatures = [
     "(z),(z),(o),(o),(o)->()",
     nopython=True,
 )
-def likelihood_fast_gu(model_temp, model_depth, tag_temp, tag_depth, var_at_depth, result):
+def likelihood_fast_gu(
+    model_temp, model_depth, tag_temp, tag_depth, var_at_depth, result
+):
     """Guvectorized temperature likelihood — replaces likelihood_fast + vectorize=True.
 
     Same computation as likelihood_fast but runs entirely in compiled numba code:
@@ -71,6 +74,7 @@ def likelihood_fast_gu(model_temp, model_depth, tag_temp, tag_depth, var_at_dept
         result[0] = np.nan
     else:
         result[0] = np.exp(log_sum / count)
+
 
 _diff_z_signatures = [
     "void(float32[:], float32[:], float32[:], float32[:], float32[:])",
