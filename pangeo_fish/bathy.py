@@ -219,14 +219,11 @@ def compute_pdf_bathy_batch_numba(ds_chunk, reshaped_tag, copernicus_chunk):
 
     hist = np.asarray(ds_chunk["bathy_pixel_hist"].values)  # (C,B)
     pressure = np.asarray(reshaped_tag["pressure"].values)  # (T,n_obs) or (T,C,n_obs)
-    XE = np.asarray(copernicus_chunk["XE"].values)  # (T,C)
-    # Hourly Copernicus zos may carry a singleton depth dim → squeeze to (T,C)
-    if XE.ndim > 2:
-        XE = XE.squeeze()
-    if XE.ndim != 2:
-        raise ValueError(
-            f"XE should be 2D (T, C) after squeezing, got shape {XE.shape}"
-        )
+    XE = copernicus_chunk["XE"]
+    # Drop depth dim if present (only surface layer has values)
+    if "depth" in XE.dims:
+        XE = XE.isel(depth=0)
+    XE = np.asarray(XE.values)  # (T,C)
     depth_bins = np.asarray(ds_chunk.depth_bins.values)
 
     if pressure.ndim == 2:

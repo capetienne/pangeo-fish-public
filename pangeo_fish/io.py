@@ -156,9 +156,6 @@ def open_copernicus_catalog(cat, chunks=None):
                 "dynamic_depth": lambda ds: (ds["depth"] + ds["XE"]).assign_attrs(
                     {"units": "m", "positive": "down"}
                 ),
-                "dynamic_bathymetry": lambda ds: (ds["H0"] + ds["XE"]).assign_attrs(
-                    {"units": "m", "positive": "down"}
-                ),
             }
         )
         .pipe(broadcast_variables, {"lat": "latitude", "lon": "longitude"})
@@ -244,9 +241,6 @@ def prepare_dataset(dataset, chunks=None, bbox=None, names=None):
         .assign(
             {
                 "dynamic_depth": lambda ds: (ds["depth"] + ds["XE"]).assign_attrs(
-                    {"units": "m", "positive": "down"}
-                ),
-                "dynamic_bathymetry": lambda ds: (ds["H0"] + ds["XE"]).assign_attrs(
                     {"units": "m", "positive": "down"}
                 ),
             }
@@ -506,13 +500,10 @@ def open_copernicus_zarr(
         # Rearrange depth coordinates
         .assign(depth=lambda ds: abs(ds["depth"]))
         .isel(depth=slice(None, None, -1))
-        # assign dynamic depth and bathymetry
+        # assign dynamic depth
         .assign(
             {
                 "dynamic_depth": lambda ds: (ds["depth"] + ds["XE"]).assign_attrs(
-                    {"units": "m", "positive": "down"}
-                ),
-                "dynamic_bathymetry": lambda ds: (ds["H0"] + ds["XE"]).assign_attrs(
                     {"units": "m", "positive": "down"}
                 ),
             }
