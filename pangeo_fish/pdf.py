@@ -2,7 +2,6 @@
 
 import cf_xarray  # noqa: F401
 import more_itertools
-import numpy as np
 import scipy.stats
 import xarray as xr
 from more_itertools import first

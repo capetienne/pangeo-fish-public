@@ -14,7 +14,7 @@ import pandas as pd
 import xarray as xr
 from scipy.stats import spearmanr
 
-from pangeo_fish.light.physics import moon_ground_illuminance, predicted_moon_curve
+from pangeo_fish.light.physics import predicted_moon_curve
 
 
 def find_usable_moon_nights(
